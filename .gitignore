@@ -1,0 +1,14 @@
+# Editor and OS files
+*.swp
+*.swo
+*~
+.DS_Store
+.vscode/
+.idea/
+
+# Claude Code configuration (user-specific)
+.claude/
+
+# Temporary files
+*.tmp
+*.log
