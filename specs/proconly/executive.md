@@ -11,7 +11,10 @@ Engineers can paste the script into any Linux container and immediately see all
 running processes with their state and command lines. For deeper investigation,
 the tool shows open file descriptors including network sockets with full address
 resolution (TCP/UDP, IPv4/IPv6, listening vs connected, local and remote
-endpoints).
+endpoints). Output is optimized for dense production environments with long
+command lines truncated to 120 characters by default (override with
+`--no-truncate`), numeric PID sorting for intuitive navigation, and a summary
+footer showing total process and file descriptor counts.
 
 The tool is designed for hostile environments: it handles permission errors
 gracefully (showing what's accessible rather than failing), survives process
@@ -52,5 +55,8 @@ is kept under 400 lines for reliable copy-paste deployment.
 | **REQ-PO-022:** Reliable Output Despite Bad Data | ❌ Not Started | Fallback handling not implemented |
 | **REQ-PO-030:** Work in Minimal Environments | ✅ Complete | POSIX sh, busybox only |
 | **REQ-PO-031:** Deploy Without Package Manager | ✅ Complete | Single file, under 400 lines |
+| **REQ-PO-040:** Readable Command Lines in Dense Environments | ✅ Complete | 120 char truncation, --no-truncate flag |
+| **REQ-PO-041:** Intuitive Process Ordering | ✅ Complete | Numeric PID sorting |
+| **REQ-PO-042:** Quick Summary of System State | ✅ Complete | Header and footer with counts |
 
-**Progress:** 8 of 14 complete
+**Progress:** 11 of 17 complete

@@ -208,3 +208,46 @@ THE SYSTEM SHALL be deployable via copy-paste into a terminal
 only deployment mechanism. The tool must be small enough to paste reliably.
 
 ---
+
+### REQ-PO-040: Readable Command Lines in Dense Environments
+
+WHEN displaying process command lines
+THE SYSTEM SHALL truncate them to 120 characters by default
+
+WHEN the `--no-truncate` flag is provided
+THE SYSTEM SHALL display full command lines without truncation
+
+WHEN a command line is truncated
+THE SYSTEM SHALL append `...` to indicate truncation
+
+**Rationale:** Production environments like Kubernetes have processes with
+extremely long command lines (1000+ characters). Truncation keeps output
+scannable while preserving the most important information at the start.
+
+---
+
+### REQ-PO-041: Intuitive Process Ordering
+
+WHEN listing processes
+THE SYSTEM SHALL sort them by PID in numeric ascending order
+
+**Rationale:** Numeric sorting (1, 2, 10, 100) is more intuitive than
+lexicographic sorting (1, 10, 100, 2). Lower PIDs are typically system
+processes, making the output easier to scan from infrastructure to application.
+
+---
+
+### REQ-PO-042: Quick Summary of System State
+
+WHEN the script starts
+THE SYSTEM SHALL display a header with the tool name
+
+WHEN the script completes
+THE SYSTEM SHALL display a footer summarizing total process count and total
+open file descriptor count
+
+**Rationale:** Engineers need a quick summary to understand system scale.
+Knowing "47 processes, 312 open FDs" immediately tells you if this is a busy
+system or a minimal container.
+
+---

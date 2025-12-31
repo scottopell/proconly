@@ -5,18 +5,51 @@
 set -e
 
 # ============================================================================
+# Configuration and Arguments
+# ============================================================================
+
+TRUNCATE_CMD=1
+CMD_MAX_LEN=120
+
+# Parse arguments
+for arg in "$@"; do
+    case "$arg" in
+        --no-truncate)
+            TRUNCATE_CMD=0
+            ;;
+    esac
+done
+
+# Truncate command line if needed
+# REQ-PO-040: Readable Command Lines in Dense Environments
+truncate_cmd() {
+    cmd="$1"
+    if [ "$TRUNCATE_CMD" -eq 1 ] && [ ${#cmd} -gt $CMD_MAX_LEN ]; then
+        printf "%.${CMD_MAX_LEN}s..." "$cmd"
+    else
+        printf "%s" "$cmd"
+    fi
+}
+
+# Counters for summary
+# REQ-PO-042: Quick Summary of System State
+process_count=0
+fd_count=0
+
+# ============================================================================
 # Helper Functions for Socket Parsing
 # ============================================================================
 
 # Parse IPv4 hex address (little-endian) to dotted decimal
 # Input: 0100007F (hex), Output: 127.0.0.1
+# Uses cut for POSIX compliance (dash doesn't support ${var:n:m} syntax)
 parse_ipv4_hex() {
     hex=$1
     # IPv4 stored in little-endian, reverse byte order
-    b1=$(printf "%d" 0x${hex:6:2} 2>/dev/null || echo "0")
-    b2=$(printf "%d" 0x${hex:4:2} 2>/dev/null || echo "0")
-    b3=$(printf "%d" 0x${hex:2:2} 2>/dev/null || echo "0")
-    b4=$(printf "%d" 0x${hex:0:2} 2>/dev/null || echo "0")
+    b1=$(printf "%d" 0x$(echo "$hex" | cut -c7-8) 2>/dev/null || echo "0")
+    b2=$(printf "%d" 0x$(echo "$hex" | cut -c5-6) 2>/dev/null || echo "0")
+    b3=$(printf "%d" 0x$(echo "$hex" | cut -c3-4) 2>/dev/null || echo "0")
+    b4=$(printf "%d" 0x$(echo "$hex" | cut -c1-2) 2>/dev/null || echo "0")
     echo "$b1.$b2.$b3.$b4"
 }
 
@@ -113,7 +146,9 @@ lookup_inet_socket() {
         fi
     fi
 
-    return 1
+    # Return 0 even when not found - callers check output, not exit code
+    # This avoids issues with set -e in strict POSIX shells (dash)
+    return 0
 }
 
 # Lookup unix socket info by inode
@@ -122,7 +157,7 @@ lookup_unix_socket() {
     inode=$1
 
     if [ ! -r /proc/net/unix ]; then
-        return 1
+        return 0
     fi
 
     # Extract path from /proc/net/unix
@@ -137,10 +172,14 @@ lookup_unix_socket() {
 echo "=== proconly.sh - Process Diagnostics ==="
 echo ""
 
+# Get sorted list of PIDs
+# REQ-PO-041: Intuitive Process Ordering
+pids=$(ls -1 /proc 2>/dev/null | grep '^[0-9]*$' | sort -n)
+
 # List all running processes
 echo "--- Running Processes ---"
-for pid_dir in /proc/[0-9]*; do
-    pid=$(basename "$pid_dir")
+for pid in $pids; do
+    pid_dir="/proc/$pid"
 
     # Skip if we can't read this process
     if [ ! -r "$pid_dir/stat" ]; then
@@ -164,13 +203,19 @@ for pid_dir in /proc/[0-9]*; do
         state=$(cat "$pid_dir/stat" 2>/dev/null | cut -d' ' -f3 || echo "?")
     fi
 
-    echo "PID $pid [$state]: $cmd"
+    # REQ-PO-040: Apply truncation
+    cmd_display=$(truncate_cmd "$cmd")
+    echo "PID $pid [$state]: $cmd_display"
+
+    # REQ-PO-042: Count processes
+    process_count=$((process_count + 1))
 done
 
 echo ""
 echo "--- Open File Descriptors ---"
-for pid_dir in /proc/[0-9]*; do
-    pid=$(basename "$pid_dir")
+# REQ-PO-041: Use same sorted PID list
+for pid in $pids; do
+    pid_dir="/proc/$pid"
 
     # Skip if we can't read this process's FD directory
     if [ ! -d "$pid_dir/fd" ] || [ ! -r "$pid_dir/fd" ]; then
@@ -178,15 +223,15 @@ for pid_dir in /proc/[0-9]*; do
     fi
 
     # Check if there are any FDs to list
-    fd_count=0
+    proc_fd_count=0
     for fd in "$pid_dir/fd"/*; do
         if [ -L "$fd" ]; then
-            fd_count=$((fd_count + 1))
+            proc_fd_count=$((proc_fd_count + 1))
         fi
     done
 
     # Skip if no FDs found
-    if [ "$fd_count" -eq 0 ]; then
+    if [ "$proc_fd_count" -eq 0 ]; then
         continue
     fi
 
@@ -199,8 +244,10 @@ for pid_dir in /proc/[0-9]*; do
         cmd=$(cat "$pid_dir/comm" 2>/dev/null || echo "")
     fi
 
+    # REQ-PO-040: Apply truncation to FD section header
+    cmd_display=$(truncate_cmd "$cmd")
     echo ""
-    echo "PID $pid: $cmd"
+    echo "PID $pid: $cmd_display"
 
     # List all file descriptors
     for fd in "$pid_dir/fd"/*; do
@@ -276,9 +323,12 @@ for pid_dir in /proc/[0-9]*; do
                     echo "  FD $fd_num -> $fd_target"
                     ;;
             esac
+            # REQ-PO-042: Count file descriptors
+            fd_count=$((fd_count + 1))
         fi
     done
 done
 
 echo ""
-echo "--- Process Complete ---"
+# REQ-PO-042: Summary footer
+echo "=== Summary: $process_count processes, $fd_count open file descriptors ==="

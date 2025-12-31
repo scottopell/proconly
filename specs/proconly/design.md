@@ -225,14 +225,38 @@ Need to add validation for:
 - No imports or dependencies
 - Self-contained with all helper functions inline
 
+### REQ-PO-040: Readable Command Lines in Dense Environments
+
+- Default truncation at 120 characters
+- Parse `--no-truncate` flag at script start
+- Truncation function: `truncate_cmd()` that appends `...` if over limit
+- Apply truncation in both process listing and FD section headers
+- 120 chosen to fit typical terminal width while showing meaningful info
+
+### REQ-PO-041: Intuitive Process Ordering
+
+- Collect PIDs first, then sort numerically before processing
+- Use `sort -n` for numeric ordering (busybox compatible)
+- Store PIDs in temp variable or use pipeline with sort
+- Approach: `ls -1 /proc | grep '^[0-9]*$' | sort -n`
+
+### REQ-PO-042: Quick Summary of System State
+
+- Track counters: `process_count` and `fd_count`
+- Increment `process_count` for each discovered process
+- Increment `fd_count` for each file descriptor enumerated
+- Header: `=== proconly.sh - Process Diagnostics ===`
+- Footer: `=== Summary: N processes, M open file descriptors ===`
+
 ## File Locations
 
 | Component | Location |
 |-----------|----------|
 | Main script | `proconly.sh` |
 | Test harness | `tests/test-busybox.sh` |
-| Requirements (old) | `tests/requirements.md` |
-| Requirements (spEARS) | `specs/proconly/requirements.md` |
+| Requirements | `specs/proconly/requirements.md` |
+| Design | `specs/proconly/design.md` |
+| Status | `specs/proconly/executive.md` |
 
 ## Trade-offs and Decisions
 

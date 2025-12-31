@@ -51,6 +51,9 @@ usage() {
     echo "  REQ-PO-004   - Identify what each process is doing"
     echo "  REQ-PO-010   - See what files processes have open"
     echo "  REQ-PO-011   - Identify network connections"
+    echo "  REQ-PO-040   - Readable command lines in dense environments"
+    echo "  REQ-PO-041   - Intuitive process ordering"
+    echo "  REQ-PO-042   - Quick summary of system state"
     echo "  all          - Run all requirement tests"
     echo ""
     echo "Examples:"
@@ -312,6 +315,125 @@ sh /tmp/proconly.sh
     return 0
 }
 
+# REQ-PO-040: Readable Command Lines in Dense Environments
+test_req_po_040() {
+    log_info "Testing REQ-PO-040: Readable Command Lines in Dense Environments"
+
+    local output
+    # Create a process with a very long command line (>120 chars)
+    # Using sh -c with a long echo that sleeps, since busybox sleep is limited
+    output=$(cat "$PROCONLY_SCRIPT" | docker run --rm -i busybox sh -c '
+# Create process with long cmdline by using sh -c with padding
+sh -c "sleep 999" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaXENDMARKER" &
+sleep 0.2
+
+cat > /tmp/proconly.sh
+sh /tmp/proconly.sh
+')
+
+    # Check that truncation indicator appears for long command
+    if echo "$output" | grep -q "\.\.\."; then
+        log_success "✓ REQ-PO-040: Long command lines are truncated with ..."
+    else
+        log_error "✗ REQ-PO-040: Truncation indicator not found"
+        return 1
+    fi
+
+    # Verify XENDMARKER is NOT visible (it was truncated)
+    if echo "$output" | grep -q "XENDMARKER"; then
+        log_error "✗ REQ-PO-040: Long command was not truncated (XENDMARKER visible)"
+        return 1
+    fi
+
+    # Test --no-truncate flag
+    output=$(cat "$PROCONLY_SCRIPT" | docker run --rm -i busybox sh -c '
+sh -c "sleep 999" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaXENDMARKER" &
+sleep 0.2
+
+cat > /tmp/proconly.sh
+sh /tmp/proconly.sh --no-truncate
+')
+
+    # With --no-truncate, should see the full argument including XENDMARKER
+    if echo "$output" | grep -q "XENDMARKER"; then
+        log_success "✓ REQ-PO-040: --no-truncate shows full command line"
+    else
+        log_error "✗ REQ-PO-040: --no-truncate flag not working (XENDMARKER not found)"
+        return 1
+    fi
+
+    return 0
+}
+
+# REQ-PO-041: Intuitive Process Ordering
+test_req_po_041() {
+    log_info "Testing REQ-PO-041: Intuitive Process Ordering"
+
+    local output
+    output=$(docker run --rm -i busybox sh -s < "$PROCONLY_SCRIPT" 2>&1)
+
+    # Extract PIDs from output in order
+    local pids
+    pids=$(echo "$output" | grep "^PID [0-9]" | sed 's/PID \([0-9]*\).*/\1/')
+
+    # Check if PIDs are in numeric order
+    local sorted_pids
+    sorted_pids=$(echo "$pids" | sort -n)
+
+    if [ "$pids" = "$sorted_pids" ]; then
+        log_success "✓ REQ-PO-041: PIDs are sorted in numeric order"
+    else
+        log_error "✗ REQ-PO-041: PIDs are not in numeric order"
+        log_info "Got: $(echo $pids | tr '\n' ' ')"
+        log_info "Expected: $(echo $sorted_pids | tr '\n' ' ')"
+        return 1
+    fi
+
+    return 0
+}
+
+# REQ-PO-042: Quick Summary of System State
+test_req_po_042() {
+    log_info "Testing REQ-PO-042: Quick Summary of System State"
+
+    local output
+    output=$(cat "$PROCONLY_SCRIPT" | docker run --rm -i busybox sh -c '
+# Start a few processes
+sleep 999 &
+sleep 998 &
+sleep 0.2
+
+cat > /tmp/proconly.sh
+sh /tmp/proconly.sh
+')
+
+    # Check for header
+    if echo "$output" | grep -q "=== proconly.sh"; then
+        log_success "✓ REQ-PO-042: Header present"
+    else
+        log_error "✗ REQ-PO-042: Header not found"
+        return 1
+    fi
+
+    # Check for footer with summary
+    if echo "$output" | grep -qE "=== Summary:.*processes.*file descriptors"; then
+        log_success "✓ REQ-PO-042: Footer with summary present"
+    else
+        log_error "✗ REQ-PO-042: Footer summary not found"
+        return 1
+    fi
+
+    # Check that counts are numbers
+    if echo "$output" | grep -qE "Summary: [0-9]+ processes, [0-9]+ (open )?file descriptors"; then
+        log_success "✓ REQ-PO-042: Summary contains numeric counts"
+    else
+        log_error "✗ REQ-PO-042: Summary counts not found or malformed"
+        return 1
+    fi
+
+    return 0
+}
+
 # Run all requirement tests
 test_all_requirements() {
     log_info "Running all spEARS requirement tests..."
@@ -327,6 +449,9 @@ test_all_requirements() {
         "test_req_po_004"
         "test_req_po_010"
         "test_req_po_011"
+        "test_req_po_040"
+        "test_req_po_041"
+        "test_req_po_042"
     )
 
     for test_func in "${tests[@]}"; do
@@ -401,12 +526,21 @@ run_requirement_test() {
         REQ-PO-011)
             test_req_po_011
             ;;
+        REQ-PO-040)
+            test_req_po_040
+            ;;
+        REQ-PO-041)
+            test_req_po_041
+            ;;
+        REQ-PO-042)
+            test_req_po_042
+            ;;
         all)
             test_all_requirements
             ;;
         *)
             log_error "Unknown requirement: $req_id"
-            log_info "Available: REQ-PO-001, REQ-PO-002, REQ-PO-003, REQ-PO-004, REQ-PO-010, REQ-PO-011, all"
+            log_info "Available: REQ-PO-001, REQ-PO-002, REQ-PO-003, REQ-PO-004, REQ-PO-010, REQ-PO-011, REQ-PO-040, REQ-PO-041, REQ-PO-042, all"
             exit 1
             ;;
     esac
