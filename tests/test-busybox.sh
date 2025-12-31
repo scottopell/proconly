@@ -1,6 +1,6 @@
 #!/bin/bash
-# test-busybox.sh - EARS requirement testing for proconly.sh
-# Tests requirements defined in tests/requirements.md
+# test-busybox.sh - spEARS requirement testing for proconly.sh
+# Tests requirements defined in specs/proconly/requirements.md
 
 set -e
 
@@ -12,6 +12,7 @@ PROCONLY_SCRIPT="$PROJECT_ROOT/proconly.sh"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
 NC='\033[0m'
 
 log_info() {
@@ -24,6 +25,10 @@ log_success() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
 # Check if proconly.sh exists
@@ -39,20 +44,21 @@ usage() {
     echo "  run       - Run proconly.sh in busybox (quick manual test)"
     echo "  req       - Test specific EARS requirement (primary mode)"
     echo ""
-    echo "Requirements:"
-    echo "  REQ-001   - Script execution"
-    echo "  REQ-002   - Process discovery"
-    echo "  REQ-003   - Process information display"
-    echo "  REQ-004   - Command line parsing"
-    echo "  REQ-005   - Process state detection"
-    echo "  REQ-010   - Open file enumeration"
-    echo "  REQ-011   - Socket detection & address resolution"
-    echo "  all       - Run all requirement tests"
+    echo "Requirements (spEARS format):"
+    echo "  REQ-PO-001   - Run diagnostics in any container"
+    echo "  REQ-PO-002   - See all running processes"
+    echo "  REQ-PO-003   - Understand process state"
+    echo "  REQ-PO-004   - Identify what each process is doing"
+    echo "  REQ-PO-010   - See what files processes have open"
+    echo "  REQ-PO-011   - Identify network connections"
+    echo "  all          - Run all requirement tests"
     echo ""
     echo "Examples:"
-    echo "  $0 run              # Quick manual execution"
-    echo "  $0 req REQ-001      # Test single requirement"
-    echo "  $0 req all          # Test all requirements (primary workflow)"
+    echo "  $0 run                # Quick manual execution"
+    echo "  $0 req REQ-PO-001     # Test single requirement"
+    echo "  $0 req all            # Test all requirements (primary workflow)"
+    echo ""
+    echo "See specs/proconly/requirements.md for full requirement definitions"
 }
 
 if [ "$1" = "help" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -61,46 +67,46 @@ if [ "$1" = "help" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 # ============================================================================
-# EARS REQUIREMENT TESTS
-# See tests/requirements.md for full requirement definitions
+# spEARS REQUIREMENT TESTS
+# See specs/proconly/requirements.md for full requirement definitions
 # ============================================================================
 
-# REQ-001: Script Execution
-test_req_001() {
-    log_info "Testing REQ-001: Script Execution"
+# REQ-PO-001: Run Diagnostics in Any Container
+test_req_po_001() {
+    log_info "Testing REQ-PO-001: Run Diagnostics in Any Container"
 
     local exit_code=0
     local output
     output=$(docker run --rm -i busybox sh -s < "$PROCONLY_SCRIPT" 2>&1) || exit_code=$?
 
     if [ $exit_code -eq 0 ]; then
-        log_success "✓ REQ-001: Script exits with code 0"
+        log_success "✓ REQ-PO-001: Script exits with code 0"
     else
-        log_error "✗ REQ-001: Script exited with code $exit_code"
+        log_error "✗ REQ-PO-001: Script exited with code $exit_code"
         return 1
     fi
 
     if [ -n "$output" ]; then
-        log_success "✓ REQ-001: Script produces output"
+        log_success "✓ REQ-PO-001: Script produces output"
     else
-        log_error "✗ REQ-001: No output produced"
+        log_error "✗ REQ-PO-001: No output produced"
         return 1
     fi
 
     return 0
 }
 
-# REQ-002: Process Discovery
-test_req_002() {
-    log_info "Testing REQ-002: Process Discovery"
+# REQ-PO-002: See All Running Processes
+test_req_po_002() {
+    log_info "Testing REQ-PO-002: See All Running Processes"
 
     local output
     output=$(docker run --rm -i busybox sh -s < "$PROCONLY_SCRIPT" 2>&1)
 
     if echo "$output" | grep -q "PID 1"; then
-        log_success "✓ REQ-002: PID 1 (init) discovered"
+        log_success "✓ REQ-PO-002: PID 1 (init) discovered"
     else
-        log_error "✗ REQ-002: PID 1 not found"
+        log_error "✗ REQ-PO-002: PID 1 not found"
         return 1
     fi
 
@@ -108,49 +114,69 @@ test_req_002() {
     pid_count=$(echo "$output" | grep -c "^PID [0-9]" || true)
 
     if [ "$pid_count" -gt 0 ]; then
-        log_success "✓ REQ-002: Discovered $pid_count processes"
+        log_success "✓ REQ-PO-002: Discovered $pid_count processes"
     else
-        log_error "✗ REQ-002: No processes discovered"
+        log_error "✗ REQ-PO-002: No processes discovered"
         return 1
     fi
 
     return 0
 }
 
-# REQ-003: Process Information Display
-test_req_003() {
-    log_info "Testing REQ-003: Process Information Display"
+# REQ-PO-003: Understand Process State
+# (Combines old REQ-003 and REQ-005)
+test_req_po_003() {
+    log_info "Testing REQ-PO-003: Understand Process State"
 
     local output
     output=$(docker run --rm -i busybox sh -s < "$PROCONLY_SCRIPT" 2>&1)
 
+    # Check PID displayed
     if echo "$output" | grep -qE "PID [0-9]+"; then
-        log_success "✓ REQ-003: PID displayed"
+        log_success "✓ REQ-PO-003: PID displayed"
     else
-        log_error "✗ REQ-003: PID not displayed"
+        log_error "✗ REQ-PO-003: PID not displayed"
         return 1
     fi
 
+    # Check process state displayed
     if echo "$output" | grep -qE "\[[A-Z?]\]"; then
-        log_success "✓ REQ-003: Process state displayed"
+        log_success "✓ REQ-PO-003: Process state displayed"
     else
-        log_error "✗ REQ-003: Process state not displayed"
+        log_error "✗ REQ-PO-003: Process state not displayed"
         return 1
     fi
 
+    # Check command displayed
     if echo "$output" | grep -qE "PID [0-9]+ \[[A-Z?]\]:"; then
-        log_success "✓ REQ-003: Command displayed"
+        log_success "✓ REQ-PO-003: Command displayed"
     else
-        log_error "✗ REQ-003: Command not displayed"
+        log_error "✗ REQ-PO-003: Command not displayed"
+        return 1
+    fi
+
+    # Check valid state characters (R/S/D/Z/T/I/W/X)
+    if echo "$output" | grep -qE "\[(R|S|D|Z|T|I|W|X)\]"; then
+        log_success "✓ REQ-PO-003: Valid process state extracted"
+    else
+        log_error "✗ REQ-PO-003: No valid process states found"
+        return 1
+    fi
+
+    # Check state for PID 1 specifically
+    if echo "$output" | grep -E "PID 1" | grep -qE "\[(R|S|D|Z|T|I|W|X)\]"; then
+        log_success "✓ REQ-PO-003: State displayed for PID 1"
+    else
+        log_error "✗ REQ-PO-003: State not displayed for PID 1"
         return 1
     fi
 
     return 0
 }
 
-# REQ-004: Command Line Parsing
-test_req_004() {
-    log_info "Testing REQ-004: Command Line Parsing"
+# REQ-PO-004: Identify What Each Process Is Doing
+test_req_po_004() {
+    log_info "Testing REQ-PO-004: Identify What Each Process Is Doing"
 
     local output
     output=$(cat "$PROCONLY_SCRIPT" | docker run --rm -i busybox sh -c '
@@ -164,42 +190,18 @@ sh /tmp/proconly.sh
 ')
 
     if echo "$output" | grep -q "sleep"; then
-        log_success "✓ REQ-004: Command line parsed and displayed"
+        log_success "✓ REQ-PO-004: Command line parsed and displayed"
     else
-        log_error "✗ REQ-004: Command line not found in output"
+        log_error "✗ REQ-PO-004: Command line not found in output"
         return 1
     fi
 
     return 0
 }
 
-# REQ-005: Process State Detection
-test_req_005() {
-    log_info "Testing REQ-005: Process State Detection"
-
-    local output
-    output=$(docker run --rm -i busybox sh -s < "$PROCONLY_SCRIPT" 2>&1)
-
-    if echo "$output" | grep -qE "\[(R|S|D|Z|T|I|W|X)\]"; then
-        log_success "✓ REQ-005: Process state extracted from /proc/[pid]/stat"
-    else
-        log_error "✗ REQ-005: No valid process states found"
-        return 1
-    fi
-
-    if echo "$output" | grep -E "PID 1" | grep -qE "\[(R|S|D|Z|T|I|W|X)\]"; then
-        log_success "✓ REQ-005: State displayed for PID 1"
-    else
-        log_error "✗ REQ-005: State not displayed for PID 1"
-        return 1
-    fi
-
-    return 0
-}
-
-# REQ-010: Open File Enumeration
-test_req_010() {
-    log_info "Testing REQ-010: Open File Enumeration"
+# REQ-PO-010: See What Files Processes Have Open
+test_req_po_010() {
+    log_info "Testing REQ-PO-010: See What Files Processes Have Open"
 
     local output
     output=$(cat "$PROCONLY_SCRIPT" | docker run --rm -i busybox sh -c '
@@ -219,26 +221,26 @@ sh /tmp/proconly.sh
 
     # Check that FD directory is being read
     if echo "$output" | grep -qE "(Open files|File descriptors|FD [0-9]+)"; then
-        log_success "✓ REQ-010: File descriptor information displayed"
+        log_success "✓ REQ-PO-010: File descriptor information displayed"
     else
-        log_error "✗ REQ-010: No file descriptor information found"
+        log_error "✗ REQ-PO-010: No file descriptor information found"
         return 1
     fi
 
     # Check that file paths are shown (should see /tmp or standard FDs)
     if echo "$output" | grep -qE "(/tmp|/dev|/proc)"; then
-        log_success "✓ REQ-010: File paths resolved from symlinks"
+        log_success "✓ REQ-PO-010: File paths resolved from symlinks"
     else
-        log_error "✗ REQ-010: File paths not displayed"
+        log_error "✗ REQ-PO-010: File paths not displayed"
         return 1
     fi
 
     return 0
 }
 
-# REQ-011: Socket Detection & Address Resolution
-test_req_011() {
-    log_info "Testing REQ-011: Socket Detection & Address Resolution"
+# REQ-PO-011: Identify Network Connections
+test_req_po_011() {
+    log_info "Testing REQ-PO-011: Identify Network Connections"
 
     local output
     output=$(cat "$PROCONLY_SCRIPT" | docker run --rm -i busybox sh -c '
@@ -261,49 +263,49 @@ sh /tmp/proconly.sh
 
     # Check that sockets are detected
     if echo "$output" | grep -q "socket:\["; then
-        log_success "✓ REQ-011: Socket file descriptors detected"
+        log_success "✓ REQ-PO-011: Socket file descriptors detected"
     else
-        log_error "✗ REQ-011: No sockets detected"
+        log_error "✗ REQ-PO-011: No sockets detected"
         return 1
     fi
 
     # Check for TCP protocol identification
     if echo "$output" | grep -qE "(TCP/IPv4|TCP/IPv6)"; then
-        log_success "✓ REQ-011: TCP protocol identified"
+        log_success "✓ REQ-PO-011: TCP protocol identified"
     else
-        log_error "✗ REQ-011: TCP protocol not identified"
+        log_error "✗ REQ-PO-011: TCP protocol not identified"
         return 1
     fi
 
     # Check for UDP protocol identification
     if echo "$output" | grep -qE "UDP"; then
-        log_success "✓ REQ-011: UDP protocol identified"
+        log_success "✓ REQ-PO-011: UDP protocol identified"
     else
-        log_error "✗ REQ-011: UDP protocol not identified"
+        log_error "✗ REQ-PO-011: UDP protocol not identified"
         return 1
     fi
 
     # Check for state information (LISTEN)
     if echo "$output" | grep -q "LISTEN"; then
-        log_success "✓ REQ-011: Socket state displayed"
+        log_success "✓ REQ-PO-011: Socket state displayed"
     else
-        log_error "✗ REQ-011: Socket state not displayed"
+        log_error "✗ REQ-PO-011: Socket state not displayed"
         return 1
     fi
 
     # Check for port information
     if echo "$output" | grep -qE ":(8080|9090|7070)"; then
-        log_success "✓ REQ-011: Port information displayed"
+        log_success "✓ REQ-PO-011: Port information displayed"
     else
-        log_error "✗ REQ-011: Port information not displayed"
+        log_error "✗ REQ-PO-011: Port information not displayed"
         return 1
     fi
 
     # Check for IPv4 address parsing (should see 127.0.0.1 or 0.0.0.0)
     if echo "$output" | grep -qE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"; then
-        log_success "✓ REQ-011: IPv4 addresses parsed"
+        log_success "✓ REQ-PO-011: IPv4 addresses parsed"
     else
-        log_error "✗ REQ-011: IPv4 addresses not parsed"
+        log_error "✗ REQ-PO-011: IPv4 addresses not parsed"
         return 1
     fi
 
@@ -312,20 +314,19 @@ sh /tmp/proconly.sh
 
 # Run all requirement tests
 test_all_requirements() {
-    log_info "Running all EARS requirement tests..."
+    log_info "Running all spEARS requirement tests..."
     echo ""
 
     local failed=0
     local total=0
 
     local tests=(
-        "test_req_001"
-        "test_req_002"
-        "test_req_003"
-        "test_req_004"
-        "test_req_005"
-        "test_req_010"
-        "test_req_011"
+        "test_req_po_001"
+        "test_req_po_002"
+        "test_req_po_003"
+        "test_req_po_004"
+        "test_req_po_010"
+        "test_req_po_011"
     )
 
     for test_func in "${tests[@]}"; do
@@ -353,38 +354,59 @@ test_all_requirements() {
     fi
 }
 
+# Map old requirement IDs to new ones (backward compatibility)
+map_legacy_req_id() {
+    local req_id=$1
+    case "$req_id" in
+        REQ-001) echo "REQ-PO-001" ;;
+        REQ-002) echo "REQ-PO-002" ;;
+        REQ-003) echo "REQ-PO-003" ;;
+        REQ-004) echo "REQ-PO-004" ;;
+        REQ-005) echo "REQ-PO-003" ;;  # Merged into REQ-PO-003
+        REQ-010) echo "REQ-PO-010" ;;
+        REQ-011) echo "REQ-PO-011" ;;
+        *) echo "" ;;
+    esac
+}
+
 # Run a specific requirement test
 run_requirement_test() {
     local req_id=$1
 
+    # Check for legacy ID and map it
+    local mapped_id
+    mapped_id=$(map_legacy_req_id "$req_id")
+    if [ -n "$mapped_id" ]; then
+        log_warn "Legacy ID '$req_id' mapped to '$mapped_id'"
+        log_warn "Please update to use new spEARS IDs (REQ-PO-XXX)"
+        req_id="$mapped_id"
+    fi
+
     case "$req_id" in
-        REQ-001)
-            test_req_001
+        REQ-PO-001)
+            test_req_po_001
             ;;
-        REQ-002)
-            test_req_002
+        REQ-PO-002)
+            test_req_po_002
             ;;
-        REQ-003)
-            test_req_003
+        REQ-PO-003)
+            test_req_po_003
             ;;
-        REQ-004)
-            test_req_004
+        REQ-PO-004)
+            test_req_po_004
             ;;
-        REQ-005)
-            test_req_005
+        REQ-PO-010)
+            test_req_po_010
             ;;
-        REQ-010)
-            test_req_010
-            ;;
-        REQ-011)
-            test_req_011
+        REQ-PO-011)
+            test_req_po_011
             ;;
         all)
             test_all_requirements
             ;;
         *)
             log_error "Unknown requirement: $req_id"
-            log_info "Available: REQ-001, REQ-002, REQ-003, REQ-004, REQ-005, REQ-010, REQ-011, all"
+            log_info "Available: REQ-PO-001, REQ-PO-002, REQ-PO-003, REQ-PO-004, REQ-PO-010, REQ-PO-011, all"
             exit 1
             ;;
     esac

@@ -1,0 +1,56 @@
+# Process Diagnostics - Executive Summary
+
+## Requirements Summary
+
+proconly solves a common production debugging problem: you've exec'd into a
+minimal container (Alpine, distroless, scratch) and need to understand what's
+running. There's no package manager, no network, no strace, no lsof—just
+busybox.
+
+Engineers can paste the script into any Linux container and immediately see all
+running processes with their state and command lines. For deeper investigation,
+the tool shows open file descriptors including network sockets with full address
+resolution (TCP/UDP, IPv4/IPv6, listening vs connected, local and remote
+endpoints).
+
+The tool is designed for hostile environments: it handles permission errors
+gracefully (showing what's accessible rather than failing), survives process
+churn (processes starting/stopping during execution), and works with the most
+limited shell environments (POSIX sh, busybox utilities only).
+
+## Technical Summary
+
+proconly parses the Linux `/proc` filesystem directly—no external tools required.
+Process discovery iterates numeric directories under `/proc`. Process metadata
+comes from `/proc/[pid]/stat` (state), `/proc/[pid]/cmdline` (arguments), and
+`/proc/[pid]/comm` (fallback name).
+
+File descriptor enumeration reads `/proc/[pid]/fd/` symlinks. Socket resolution
+cross-references socket inodes against `/proc/net/tcp`, `/proc/net/tcp6`,
+`/proc/net/udp`, `/proc/net/udp6`, and `/proc/net/unix` to extract protocol,
+state, and address information. IPv4 addresses are converted from hex to dotted
+decimal notation.
+
+The script is pure POSIX sh with busybox-compatible awk for parsing. Total size
+is kept under 400 lines for reliable copy-paste deployment.
+
+## Status Summary
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
+| **REQ-PO-001:** Run Diagnostics in Any Container | ✅ Complete | Verified in busybox container |
+| **REQ-PO-002:** See All Running Processes | ✅ Complete | Discovers all `/proc/[pid]` entries |
+| **REQ-PO-003:** Understand Process State | ✅ Complete | Shows PID, state, command |
+| **REQ-PO-004:** Identify What Each Process Is Doing | ✅ Complete | Parses cmdline with comm fallback |
+| **REQ-PO-010:** See What Files Processes Have Open | ✅ Complete | Enumerates `/proc/[pid]/fd/` |
+| **REQ-PO-011:** Identify Network Connections | ✅ Complete | TCP/UDP/Unix with address resolution |
+| **REQ-PO-012:** Trace Inter-Process Communication | ❌ Not Started | Pipe detection not implemented |
+| **REQ-PO-013:** Discover Loaded Libraries | ❌ Not Started | Maps parsing not implemented |
+| **REQ-PO-014:** Find the Actual Binary Running | ❌ Not Started | Exe symlink not implemented |
+| **REQ-PO-020:** Graceful Operation Without Root | 🟡 Partial | Skips unreadable processes, gaps remain |
+| **REQ-PO-021:** Stable Operation During Churn | ❌ Not Started | Race condition handling not implemented |
+| **REQ-PO-022:** Reliable Output Despite Bad Data | ❌ Not Started | Fallback handling not implemented |
+| **REQ-PO-030:** Work in Minimal Environments | ✅ Complete | POSIX sh, busybox only |
+| **REQ-PO-031:** Deploy Without Package Manager | ✅ Complete | Single file, under 400 lines |
+
+**Progress:** 8 of 14 complete
