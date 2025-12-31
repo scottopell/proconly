@@ -51,6 +51,7 @@ usage() {
     echo "  REQ-PO-004   - Identify what each process is doing"
     echo "  REQ-PO-010   - See what files processes have open"
     echo "  REQ-PO-011   - Identify network connections"
+    echo "  REQ-PO-012   - Trace inter-process communication"
     echo "  REQ-PO-013   - Discover loaded libraries"
     echo "  REQ-PO-014   - Find the actual binary running"
     echo "  REQ-PO-040   - Readable command lines in dense environments"
@@ -436,6 +437,41 @@ sh /tmp/proconly.sh
     return 0
 }
 
+# REQ-PO-012: Trace Inter-Process Communication
+test_req_po_012() {
+    log_info "Testing REQ-PO-012: Trace Inter-Process Communication"
+
+    local output
+    # Create a pipeline so two processes share a pipe inode
+    output=$(cat "$PROCONLY_SCRIPT" | docker run --rm -i busybox sh -c '
+# Create a pipeline: sleep writes to cat (via pipe)
+# Using yes piped to cat which reads forever
+yes 2>/dev/null | cat >/dev/null &
+sleep 0.3
+
+cat > /tmp/proconly.sh
+sh /tmp/proconly.sh
+')
+
+    # Check that pipes are detected
+    if echo "$output" | grep -q "pipe:\["; then
+        log_success "✓ REQ-PO-012: Pipe file descriptors detected"
+    else
+        log_error "✗ REQ-PO-012: No pipes detected"
+        return 1
+    fi
+
+    # Check that pipe cross-references show connected PIDs
+    if echo "$output" | grep -qE "pipe.*PID [0-9]+"; then
+        log_success "✓ REQ-PO-012: Pipe shows connected process"
+    else
+        log_error "✗ REQ-PO-012: Pipe cross-reference not shown"
+        return 1
+    fi
+
+    return 0
+}
+
 # REQ-PO-013: Discover Loaded Libraries
 test_req_po_013() {
     log_info "Testing REQ-PO-013: Discover Loaded Libraries"
@@ -503,6 +539,7 @@ test_all_requirements() {
         "test_req_po_004"
         "test_req_po_010"
         "test_req_po_011"
+        "test_req_po_012"
         "test_req_po_013"
         "test_req_po_014"
         "test_req_po_040"
@@ -582,6 +619,9 @@ run_requirement_test() {
         REQ-PO-011)
             test_req_po_011
             ;;
+        REQ-PO-012)
+            test_req_po_012
+            ;;
         REQ-PO-013)
             test_req_po_013
             ;;
@@ -602,7 +642,7 @@ run_requirement_test() {
             ;;
         *)
             log_error "Unknown requirement: $req_id"
-            log_info "Available: REQ-PO-001, REQ-PO-002, REQ-PO-003, REQ-PO-004, REQ-PO-010, REQ-PO-011, REQ-PO-013, REQ-PO-014, REQ-PO-040, REQ-PO-041, REQ-PO-042, all"
+            log_info "Available: REQ-PO-001, REQ-PO-002, REQ-PO-003, REQ-PO-004, REQ-PO-010, REQ-PO-011, REQ-PO-012, REQ-PO-013, REQ-PO-014, REQ-PO-040, REQ-PO-041, REQ-PO-042, all"
             exit 1
             ;;
     esac

@@ -48,7 +48,7 @@ is kept under 400 lines for reliable copy-paste deployment.
 | **REQ-PO-004:** Identify What Each Process Is Doing | ✅ Complete | Parses cmdline with comm fallback |
 | **REQ-PO-010:** See What Files Processes Have Open | ✅ Complete | Enumerates `/proc/[pid]/fd/` |
 | **REQ-PO-011:** Identify Network Connections | ✅ Complete | TCP/UDP/Unix with address resolution |
-| **REQ-PO-012:** Trace Inter-Process Communication | ❌ Not Started | Pipe detection not implemented |
+| **REQ-PO-012:** Trace Inter-Process Communication | ✅ Complete | Cross-references pipe inodes between processes |
 | **REQ-PO-013:** Discover Loaded Libraries | ✅ Complete | Parses /proc/[pid]/maps for file-backed mappings |
 | **REQ-PO-014:** Find the Actual Binary Running | ✅ Complete | Reads /proc/[pid]/exe symlink |
 | **REQ-PO-020:** Graceful Operation Without Root | 🟡 Partial | Skips unreadable processes, gaps remain |
@@ -60,4 +60,4 @@ is kept under 400 lines for reliable copy-paste deployment.
 | **REQ-PO-041:** Intuitive Process Ordering | ✅ Complete | Numeric PID sorting |
 | **REQ-PO-042:** Quick Summary of System State | ✅ Complete | Header and footer with counts |
 
-**Progress:** 13 of 17 complete
+**Progress:** 14 of 17 complete

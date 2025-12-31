@@ -176,6 +176,48 @@ echo ""
 # REQ-PO-041: Intuitive Process Ordering
 pids=$(ls -1 /proc 2>/dev/null | grep '^[0-9]*$' | sort -n)
 
+# REQ-PO-012: Build pipe inode map for cross-referencing
+# Format: "inode:pid:fd" per line
+pipe_map=""
+for pid in $pids; do
+    pid_dir="/proc/$pid"
+    if [ -d "$pid_dir/fd" ] && [ -r "$pid_dir/fd" ]; then
+        for fd in "$pid_dir/fd"/*; do
+            if [ -L "$fd" ]; then
+                fd_target=$(readlink "$fd" 2>/dev/null || echo "")
+                case "$fd_target" in
+                    pipe:\[*\])
+                        inode=$(echo "$fd_target" | sed 's/pipe:\[\([0-9]*\)\]/\1/')
+                        fd_num=$(basename "$fd")
+                        pipe_map="$pipe_map$inode:$pid:$fd_num
+"
+                        ;;
+                esac
+            fi
+        done
+    fi
+done
+
+# Lookup other endpoints for a pipe inode (excluding current pid:fd)
+lookup_pipe_endpoints() {
+    local inode=$1
+    local current_pid=$2
+    local current_fd=$3
+
+    # Find all entries with this inode, excluding the current one
+    echo "$pipe_map" | while read -r entry; do
+        case "$entry" in
+            "$inode:"*)
+                entry_pid=$(echo "$entry" | cut -d: -f2)
+                entry_fd=$(echo "$entry" | cut -d: -f3)
+                if [ "$entry_pid:$entry_fd" != "$current_pid:$current_fd" ]; then
+                    echo "PID $entry_pid FD $entry_fd"
+                fi
+                ;;
+        esac
+    done
+}
+
 # List all running processes
 echo "--- Running Processes ---"
 for pid in $pids; do
@@ -326,8 +368,16 @@ for pid in $pids; do
                     fi
                     ;;
                 pipe:\[*\])
-                    # Label pipes
-                    echo "  FD $fd_num -> $fd_target (pipe)"
+                    # REQ-PO-012: Label pipes with cross-reference
+                    pipe_inode=$(echo "$fd_target" | sed 's/pipe:\[\([0-9]*\)\]/\1/')
+                    pipe_endpoints=$(lookup_pipe_endpoints "$pipe_inode" "$pid" "$fd_num")
+                    if [ -n "$pipe_endpoints" ]; then
+                        # Show connected endpoints (may be multiple)
+                        endpoints_inline=$(echo "$pipe_endpoints" | tr '\n' ',' | sed 's/,$//')
+                        echo "  FD $fd_num -> $fd_target (pipe -> $endpoints_inline)"
+                    else
+                        echo "  FD $fd_num -> $fd_target (pipe)"
+                    fi
                     ;;
                 *)
                     # Regular files, devices, etc
