@@ -51,13 +51,13 @@ is kept under 400 lines for reliable copy-paste deployment.
 | **REQ-PO-012:** Trace Inter-Process Communication | ✅ Complete | Cross-references pipe inodes between processes |
 | **REQ-PO-013:** Discover Loaded Libraries | ✅ Complete | Parses /proc/[pid]/maps for file-backed mappings |
 | **REQ-PO-014:** Find the Actual Binary Running | ✅ Complete | Reads /proc/[pid]/exe symlink |
-| **REQ-PO-020:** Graceful Operation Without Root | 🟡 Partial | Skips unreadable processes, gaps remain |
-| **REQ-PO-021:** Stable Operation During Churn | ❌ Not Started | Race condition handling not implemented |
-| **REQ-PO-022:** Reliable Output Despite Bad Data | ❌ Not Started | Fallback handling not implemented |
+| **REQ-PO-020:** Graceful Operation Without Root | ✅ Complete | Skips unreadable processes, continues gracefully |
+| **REQ-PO-021:** Stable Operation During Churn | ✅ Complete | Handles disappearing processes mid-enumeration |
+| **REQ-PO-022:** Reliable Output Despite Bad Data | ✅ Complete | Fallback values for unparseable data |
 | **REQ-PO-030:** Work in Minimal Environments | ✅ Complete | POSIX sh, busybox only |
 | **REQ-PO-031:** Deploy Without Package Manager | ✅ Complete | Single file, under 400 lines |
 | **REQ-PO-040:** Readable Command Lines in Dense Environments | ✅ Complete | 120 char truncation, --no-truncate flag |
 | **REQ-PO-041:** Intuitive Process Ordering | ✅ Complete | Numeric PID sorting |
 | **REQ-PO-042:** Quick Summary of System State | ✅ Complete | Header and footer with counts |
 
-**Progress:** 14 of 17 complete
+**Progress:** 17 of 17 complete

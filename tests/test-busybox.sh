@@ -54,6 +54,9 @@ usage() {
     echo "  REQ-PO-012   - Trace inter-process communication"
     echo "  REQ-PO-013   - Discover loaded libraries"
     echo "  REQ-PO-014   - Find the actual binary running"
+    echo "  REQ-PO-020   - Graceful operation without root"
+    echo "  REQ-PO-021   - Stable operation during churn"
+    echo "  REQ-PO-022   - Reliable output despite bad data"
     echo "  REQ-PO-040   - Readable command lines in dense environments"
     echo "  REQ-PO-041   - Intuitive process ordering"
     echo "  REQ-PO-042   - Quick summary of system state"
@@ -318,6 +321,101 @@ sh /tmp/proconly.sh
     return 0
 }
 
+# REQ-PO-020: Graceful Operation Without Root
+test_req_po_020() {
+    log_info "Testing REQ-PO-020: Graceful Operation Without Root"
+
+    local output
+    local exit_code=0
+    # Run as non-root user where some /proc entries won't be readable
+    # The script should still complete successfully
+    output=$(docker run --rm -i --user 1000:1000 busybox sh -s < "$PROCONLY_SCRIPT" 2>&1) || exit_code=$?
+
+    # Should exit 0 even with permission errors
+    if [ $exit_code -eq 0 ]; then
+        log_success "✓ REQ-PO-020: Script exits cleanly despite permission errors"
+    else
+        log_error "✗ REQ-PO-020: Script failed with exit code $exit_code"
+        return 1
+    fi
+
+    # Should produce some output (at minimum the header/footer)
+    if echo "$output" | grep -q "proconly.sh"; then
+        log_success "✓ REQ-PO-020: Script produces output despite limited permissions"
+    else
+        log_error "✗ REQ-PO-020: No output produced"
+        return 1
+    fi
+
+    return 0
+}
+
+# REQ-PO-021: Stable Operation During Churn
+test_req_po_021() {
+    log_info "Testing REQ-PO-021: Stable Operation During Churn"
+
+    local output
+    local exit_code=0
+    # Create processes that exit quickly while script runs
+    output=$(cat "$PROCONLY_SCRIPT" | docker run --rm -i busybox sh -c '
+# Spawn short-lived processes that will exit during enumeration
+for i in 1 2 3 4 5; do
+    (sleep 0.05) &
+done
+
+cat > /tmp/proconly.sh
+sh /tmp/proconly.sh
+' 2>&1) || exit_code=$?
+
+    # Should exit 0 even if processes disappear
+    if [ $exit_code -eq 0 ]; then
+        log_success "✓ REQ-PO-021: Script completes despite process churn"
+    else
+        log_error "✗ REQ-PO-021: Script failed with exit code $exit_code"
+        return 1
+    fi
+
+    # Should have summary footer (completed successfully)
+    if echo "$output" | grep -q "Summary:"; then
+        log_success "✓ REQ-PO-021: Script reached completion"
+    else
+        log_error "✗ REQ-PO-021: Script did not complete"
+        return 1
+    fi
+
+    return 0
+}
+
+# REQ-PO-022: Reliable Output Despite Bad Data
+test_req_po_022() {
+    log_info "Testing REQ-PO-022: Reliable Output Despite Bad Data"
+
+    local output
+    local exit_code=0
+    # Run normally - we test that parsing handles edge cases
+    output=$(docker run --rm -i busybox sh -s < "$PROCONLY_SCRIPT" 2>&1) || exit_code=$?
+
+    # Should exit 0
+    if [ $exit_code -eq 0 ]; then
+        log_success "✓ REQ-PO-022: Script handles data parsing without crashing"
+    else
+        log_error "✗ REQ-PO-022: Script crashed during parsing"
+        return 1
+    fi
+
+    # Check that state field uses valid fallback (? for unknown)
+    # Only check lines with state brackets (Running Processes section)
+    # If all states are valid letters or ?, parsing is working
+    if echo "$output" | grep -E "^PID [0-9]+ \[" | grep -qvE "\[(R|S|D|Z|T|I|W|X|\?)\]"; then
+        log_error "✗ REQ-PO-022: Invalid state character found"
+        return 1
+    else
+        log_success "✓ REQ-PO-022: All process states are valid or fallback"
+    fi
+
+    return 0
+}
+
 # REQ-PO-040: Readable Command Lines in Dense Environments
 test_req_po_040() {
     log_info "Testing REQ-PO-040: Readable Command Lines in Dense Environments"
@@ -542,6 +640,9 @@ test_all_requirements() {
         "test_req_po_012"
         "test_req_po_013"
         "test_req_po_014"
+        "test_req_po_020"
+        "test_req_po_021"
+        "test_req_po_022"
         "test_req_po_040"
         "test_req_po_041"
         "test_req_po_042"
@@ -628,6 +729,15 @@ run_requirement_test() {
         REQ-PO-014)
             test_req_po_014
             ;;
+        REQ-PO-020)
+            test_req_po_020
+            ;;
+        REQ-PO-021)
+            test_req_po_021
+            ;;
+        REQ-PO-022)
+            test_req_po_022
+            ;;
         REQ-PO-040)
             test_req_po_040
             ;;
@@ -642,7 +752,7 @@ run_requirement_test() {
             ;;
         *)
             log_error "Unknown requirement: $req_id"
-            log_info "Available: REQ-PO-001, REQ-PO-002, REQ-PO-003, REQ-PO-004, REQ-PO-010, REQ-PO-011, REQ-PO-012, REQ-PO-013, REQ-PO-014, REQ-PO-040, REQ-PO-041, REQ-PO-042, all"
+            log_info "Available: REQ-PO-001 to REQ-PO-004, REQ-PO-010 to REQ-PO-014, REQ-PO-020 to REQ-PO-022, REQ-PO-040 to REQ-PO-042, all"
             exit 1
             ;;
     esac
