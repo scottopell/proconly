@@ -51,6 +51,8 @@ usage() {
     echo "  REQ-PO-004   - Identify what each process is doing"
     echo "  REQ-PO-010   - See what files processes have open"
     echo "  REQ-PO-011   - Identify network connections"
+    echo "  REQ-PO-013   - Discover loaded libraries"
+    echo "  REQ-PO-014   - Find the actual binary running"
     echo "  REQ-PO-040   - Readable command lines in dense environments"
     echo "  REQ-PO-041   - Intuitive process ordering"
     echo "  REQ-PO-042   - Quick summary of system state"
@@ -434,6 +436,58 @@ sh /tmp/proconly.sh
     return 0
 }
 
+# REQ-PO-013: Discover Loaded Libraries
+test_req_po_013() {
+    log_info "Testing REQ-PO-013: Discover Loaded Libraries"
+
+    local output
+    output=$(docker run --rm -i busybox sh -s < "$PROCONLY_SCRIPT" 2>&1)
+
+    # Check that mapped files section exists
+    if echo "$output" | grep -qE "(Mapped Files|Memory-Mapped)"; then
+        log_success "✓ REQ-PO-013: Mapped files section present"
+    else
+        log_error "✗ REQ-PO-013: Mapped files section not found"
+        return 1
+    fi
+
+    # Check that libraries are shown (busybox uses libc)
+    if echo "$output" | grep -qE "\.so"; then
+        log_success "✓ REQ-PO-013: Shared libraries detected"
+    else
+        log_error "✗ REQ-PO-013: No shared libraries found"
+        return 1
+    fi
+
+    return 0
+}
+
+# REQ-PO-014: Find the Actual Binary Running
+test_req_po_014() {
+    log_info "Testing REQ-PO-014: Find the Actual Binary Running"
+
+    local output
+    output=$(docker run --rm -i busybox sh -s < "$PROCONLY_SCRIPT" 2>&1)
+
+    # Check that exe is shown for processes
+    if echo "$output" | grep -qE "(Executable|Exe):"; then
+        log_success "✓ REQ-PO-014: Executable path displayed"
+    else
+        log_error "✗ REQ-PO-014: Executable path not found"
+        return 1
+    fi
+
+    # Check that /bin/busybox or similar binary path is shown
+    if echo "$output" | grep -qE "/bin/"; then
+        log_success "✓ REQ-PO-014: Binary path resolved"
+    else
+        log_error "✗ REQ-PO-014: Binary path not resolved"
+        return 1
+    fi
+
+    return 0
+}
+
 # Run all requirement tests
 test_all_requirements() {
     log_info "Running all spEARS requirement tests..."
@@ -449,6 +503,8 @@ test_all_requirements() {
         "test_req_po_004"
         "test_req_po_010"
         "test_req_po_011"
+        "test_req_po_013"
+        "test_req_po_014"
         "test_req_po_040"
         "test_req_po_041"
         "test_req_po_042"
@@ -526,6 +582,12 @@ run_requirement_test() {
         REQ-PO-011)
             test_req_po_011
             ;;
+        REQ-PO-013)
+            test_req_po_013
+            ;;
+        REQ-PO-014)
+            test_req_po_014
+            ;;
         REQ-PO-040)
             test_req_po_040
             ;;
@@ -540,7 +602,7 @@ run_requirement_test() {
             ;;
         *)
             log_error "Unknown requirement: $req_id"
-            log_info "Available: REQ-PO-001, REQ-PO-002, REQ-PO-003, REQ-PO-004, REQ-PO-010, REQ-PO-011, REQ-PO-040, REQ-PO-041, REQ-PO-042, all"
+            log_info "Available: REQ-PO-001, REQ-PO-002, REQ-PO-003, REQ-PO-004, REQ-PO-010, REQ-PO-011, REQ-PO-013, REQ-PO-014, REQ-PO-040, REQ-PO-041, REQ-PO-042, all"
             exit 1
             ;;
     esac

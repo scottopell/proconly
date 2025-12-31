@@ -32,7 +32,8 @@ File descriptor enumeration reads `/proc/[pid]/fd/` symlinks. Socket resolution
 cross-references socket inodes against `/proc/net/tcp`, `/proc/net/tcp6`,
 `/proc/net/udp`, `/proc/net/udp6`, and `/proc/net/unix` to extract protocol,
 state, and address information. IPv4 addresses are converted from hex to dotted
-decimal notation.
+decimal notation. The tool also shows the executable binary path via
+`/proc/[pid]/exe` and lists loaded libraries by parsing `/proc/[pid]/maps`.
 
 The script is pure POSIX sh with busybox-compatible awk for parsing. Total size
 is kept under 400 lines for reliable copy-paste deployment.
@@ -48,8 +49,8 @@ is kept under 400 lines for reliable copy-paste deployment.
 | **REQ-PO-010:** See What Files Processes Have Open | ✅ Complete | Enumerates `/proc/[pid]/fd/` |
 | **REQ-PO-011:** Identify Network Connections | ✅ Complete | TCP/UDP/Unix with address resolution |
 | **REQ-PO-012:** Trace Inter-Process Communication | ❌ Not Started | Pipe detection not implemented |
-| **REQ-PO-013:** Discover Loaded Libraries | ❌ Not Started | Maps parsing not implemented |
-| **REQ-PO-014:** Find the Actual Binary Running | ❌ Not Started | Exe symlink not implemented |
+| **REQ-PO-013:** Discover Loaded Libraries | ✅ Complete | Parses /proc/[pid]/maps for file-backed mappings |
+| **REQ-PO-014:** Find the Actual Binary Running | ✅ Complete | Reads /proc/[pid]/exe symlink |
 | **REQ-PO-020:** Graceful Operation Without Root | 🟡 Partial | Skips unreadable processes, gaps remain |
 | **REQ-PO-021:** Stable Operation During Churn | ❌ Not Started | Race condition handling not implemented |
 | **REQ-PO-022:** Reliable Output Despite Bad Data | ❌ Not Started | Fallback handling not implemented |
@@ -59,4 +60,4 @@ is kept under 400 lines for reliable copy-paste deployment.
 | **REQ-PO-041:** Intuitive Process Ordering | ✅ Complete | Numeric PID sorting |
 | **REQ-PO-042:** Quick Summary of System State | ✅ Complete | Header and footer with counts |
 
-**Progress:** 11 of 17 complete
+**Progress:** 13 of 17 complete

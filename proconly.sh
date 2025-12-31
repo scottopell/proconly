@@ -203,9 +203,20 @@ for pid in $pids; do
         state=$(cat "$pid_dir/stat" 2>/dev/null | cut -d' ' -f3 || echo "?")
     fi
 
+    # REQ-PO-014: Read executable symlink
+    exe=""
+    if [ -L "$pid_dir/exe" ]; then
+        exe=$(readlink "$pid_dir/exe" 2>/dev/null || echo "")
+    fi
+
     # REQ-PO-040: Apply truncation
     cmd_display=$(truncate_cmd "$cmd")
-    echo "PID $pid [$state]: $cmd_display"
+    if [ -n "$exe" ]; then
+        echo "PID $pid [$state]: $cmd_display"
+        echo "  Exe: $exe"
+    else
+        echo "PID $pid [$state]: $cmd_display"
+    fi
 
     # REQ-PO-042: Count processes
     process_count=$((process_count + 1))
@@ -326,6 +337,45 @@ for pid in $pids; do
             # REQ-PO-042: Count file descriptors
             fd_count=$((fd_count + 1))
         fi
+    done
+done
+
+echo ""
+echo "--- Memory-Mapped Files ---"
+# REQ-PO-013: Discover Loaded Libraries
+# REQ-PO-041: Use same sorted PID list
+for pid in $pids; do
+    pid_dir="/proc/$pid"
+
+    # Skip if we can't read this process's maps
+    if [ ! -r "$pid_dir/maps" ]; then
+        continue
+    fi
+
+    # Get process command for context
+    cmd=""
+    if [ -r "$pid_dir/cmdline" ]; then
+        cmd=$(tr '\0' ' ' < "$pid_dir/cmdline" 2>/dev/null || echo "")
+    fi
+    if [ -z "$cmd" ] && [ -r "$pid_dir/comm" ]; then
+        cmd=$(cat "$pid_dir/comm" 2>/dev/null || echo "")
+    fi
+
+    # Extract unique file-backed mappings (column 6 is the path)
+    # Filter to only show actual file paths (not [heap], [stack], etc.)
+    mapped_files=$(awk '$6 ~ /^\// { print $6 }' "$pid_dir/maps" 2>/dev/null | sort -u)
+
+    # Skip if no mapped files
+    if [ -z "$mapped_files" ]; then
+        continue
+    fi
+
+    # REQ-PO-040: Apply truncation to maps section header
+    cmd_display=$(truncate_cmd "$cmd")
+    echo ""
+    echo "PID $pid: $cmd_display"
+    echo "$mapped_files" | while read -r mfile; do
+        echo "  $mfile"
     done
 done
 
